@@ -124,14 +124,12 @@
 
         /**
          * 核心：載入雲端試算表資料
-         * @param {boolean} isSilent - 是否在背景靜默更新
          */
         async function loadData(isSilent = false) {
             try {
                 const response = await fetch(`${gasUrl}?t=${Date.now()}`);
                 const data = await response.json();
                 
-                // 動態生成選單分類
                 if (!isSilent) {
                     const nav = document.getElementById('dynamicNav');
                     nav.innerHTML = `<a onclick="renderCategory('All')">全部酒款 All</a><hr style="border:0; border-top:1px solid #333; margin: 10px 30px;">`;
@@ -141,28 +139,24 @@
                     });
                 }
 
-                // 資料結構轉換
                 inventory = data.wines.map(r => ({
                     bin: String(r[0]).trim(), ref: String(r[1]).trim(), country: r[2], region: r[3],
                     name: String(r[4]).trim(), size: r[5], year: String(r[6]).trim(),
                     price: r[8], stock: parseInt(r[11] || 0), desc: r[13], photo: r[14], category: r[r.length - 1] 
                 }));
                 
-                filterWines(); // 執行初始渲染
+                filterWines(); 
             } catch (e) { 
                 if(!isSilent) document.getElementById('wineList').innerHTML = "Connection Error."; 
             }
         }
 
-        // 定時自動背景更新機制 (每 60 秒同步一次)
+        // 自動刷新改為 30 秒，維持資料新鮮度
         setInterval(() => {
             console.log("Auto-SYNC: Fetching latest stock...");
             loadData(true); 
-        }, 60000);
+        }, 30000);
 
-        /**
-         * 渲染酒款列表 HTML
-         */
         function renderWines(data) {
             const listArea = document.getElementById('wineList');
             if(data.length === 0) { listArea.innerHTML = '<p style="text-align:center; color:var(--light-grey);">No matching wines found.</p>'; return; }
@@ -182,30 +176,53 @@
         }
 
         /**
-         * 庫存變更同步與本地 UI 即時反應
+         * 庫存變更同步：支援「連續修改」
+         * 修改後不會立即關閉視窗，方便店員連續輸入或調整。
          */
         async function saveStockChange() {
             if (!currentWine) return;
             const btn = document.getElementById("saveStockBtn"), status = document.getElementById("saveStatus");
             const val = document.getElementById("modalStockInput").value;
-            btn.disabled = true; status.innerText = "Syncing...";
+            
+            btn.disabled = true; 
+            status.innerText = "Syncing...";
+
             try {
-                // 發送到後端 GAS
-                await fetch(gasUrl, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ bin: currentWine.bin, name: currentWine.name, newStock: val }) });
+                // 傳送 BIN + Name + Year 給 GAS 進行精準匹配
+                const payload = { 
+                    bin: currentWine.bin, 
+                    name: currentWine.name, 
+                    year: currentWine.year, 
+                    newStock: val 
+                };
+
+                await fetch(gasUrl, { 
+                    method: 'POST', 
+                    mode: 'no-cors', 
+                    body: JSON.stringify(payload) 
+                });
                 
-                // 本地立刻反應 (Local UI Update)：不等待網路回傳即更新顯示
+                // --- 樂觀更新本地資料庫 ---
                 currentWine.stock = parseInt(val);
-                const idx = inventory.findIndex(w => w.bin === currentWine.bin && w.name === currentWine.name);
+                const idx = inventory.findIndex(w => w.bin === currentWine.bin && w.name === currentWine.name && w.year === currentWine.year);
                 if (idx !== -1) inventory[idx].stock = parseInt(val);
                 
+                // 刷新背景清單的 Sold Out 狀態
+                filterWines();
+
                 status.innerText = "✓ Saved";
-                setTimeout(() => { filterWines(); btn.disabled = false; status.innerText = ""; closeModal(); }, 800);
-            } catch (e) { status.innerText = "Error"; btn.disabled = false; }
+                
+                // 讓按鈕在短暫延遲後恢復，以便進行下一次修改
+                setTimeout(() => { 
+                    btn.disabled = false; 
+                    status.innerText = ""; 
+                }, 1500);
+            } catch (e) { 
+                status.innerText = "Error"; 
+                btn.disabled = false; 
+            }
         }
 
-        /**
-         * 搜尋與價格過濾綜合邏輯
-         */
         function filterWines() {
             const q = document.getElementById('wineSearch').value.toUpperCase();
             const min = parseInt(document.getElementById('minPriceInput').value) || 0;
@@ -219,10 +236,8 @@
             renderWines(results);
         }
 
-        // 分類切換
         function renderCategory(cat) { activeCat = cat; document.getElementById('pageTitle').innerText = (cat === 'All' ? 'Wine List' : cat); filterWines(); if(navOpen) toggleNav(); }
         
-        // Modal 控制邏輯
         function openWineModal(wine) {
             currentWine = wine;
             document.getElementById("modalWineName").innerText = wine.name + " " + (wine.year || "");
@@ -249,7 +264,6 @@
         function revealStock() { if (prompt("Staff Password:") === "0000") { document.getElementById("stockTrigger").style.display = "none"; document.getElementById("modalStockDisplay").style.display = "flex"; } }
         function closeModal() { document.getElementById("wineModal").style.display = "none"; }
         
-        // 價格滑桿互動邏輯
         function slideOne() { let s1 = document.getElementById("slider-1"), s2 = document.getElementById("slider-2"); if (parseInt(s2.value) - parseInt(s1.value) <= 500) s1.value = parseInt(s2.value) - 500; document.getElementById("minPriceInput").value = s1.value; fillColor(); filterWines(); }
         function slideTwo() { let s1 = document.getElementById("slider-1"), s2 = document.getElementById("slider-2"); if (parseInt(s2.value) - parseInt(s1.value) <= 500) s2.value = parseInt(s1.value) + 500; document.getElementById("maxPriceInput").value = s2.value; fillColor(); filterWines(); }
         function updateSliderOne() { document.getElementById("slider-1").value = document.getElementById("minPriceInput").value; fillColor(); filterWines(); }
@@ -257,8 +271,6 @@
         function fillColor() { let p1 = (document.getElementById("slider-1").value / 150000) * 100, p2 = (document.getElementById("slider-2").value / 150000) * 100; document.getElementById("sliderTrack").style.background = `linear-gradient(to right, #444 ${p1}% , var(--gold) ${p1}% , var(--gold) ${p2}%, #444 ${p2}%)`; }
         
         window.onclick = e => { if (e.target.className === "modal") closeModal(); }
-        
-        // 啟動程式
         loadData();
     </script>
 </body>
