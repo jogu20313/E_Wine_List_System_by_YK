@@ -101,10 +101,10 @@
 </head>
 <body>
 
-    <div id="loader"><div class="loader-text">SOURCING FROM THE CELLAR...</div></div>
+    <div id="loader"><div class="loader-text">Sourcing from the Cellar...</div></div>
     <span class="close-modal-fixed" id="fixedCloseBtn" onclick="closeModal()">&times;</span>
 
-    <div class="search-wrapper"><input type="text" id="wineSearch" class="search-input" placeholder="Search Wine/Ref..." oninput="filterWines()"></div>
+    <div class="search-wrapper"><input type="text" id="wineSearch" class="search-input" placeholder="Search..." oninput="filterWines()"></div>
     <span class="open-btn" id="mainMenuBtn" onclick="toggleNav()">
         <span id="menuIcon">☰</span> <span id="btnText">Menu</span>
     </span>
@@ -160,7 +160,7 @@
     <div id="main">
         <div class="menu-container">
             <header>
-                <div style="letter-spacing:4px; color:var(--gold); font-size:0.8rem; font-weight:600; margin-bottom:10px;">THE GRILL BY A CUT</div>
+                <div style="letter-spacing:4px; color:var(--gold); font-size:0.8rem; font-weight:600; margin-bottom:10px;">The Grill by A cut</div>
                 <h1 id="pageTitle" style="color:#1a1a1a; letter-spacing: 2px;">Wine List</h1>
             </header>
             <div id="wineList"></div>
@@ -282,7 +282,7 @@
             // 管理介面切換
             document.getElementById("adminEditor").style.display = isAdmin ? "block" : "none";
             if(isAdmin) {
-                document.getElementById("adminBadge").innerText = `LOGGED IN AS: ${staffName.toUpperCase()}`;
+                document.getElementById("adminBadge").innerText = `Logged in as: ${staffName.toUpperCase()}`;
                 document.getElementById("editBin").value = wine.bin;
                 document.getElementById("editStock").value = wine.stock;
                 resetBtnState();
